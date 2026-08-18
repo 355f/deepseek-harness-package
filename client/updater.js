@@ -10,7 +10,7 @@ const { spawn } = require('child_process')
 // ---------------------------------------------------------------------------
 // 发布渠道：GitHub 仓库（owner/repo），发布 new exe 的 GitHub Release
 // 可在此直接修改，或通过环境变量 DSH_UPDATE_REPO 覆盖
-const UPDATE_REPO = process.env.DSH_UPDATE_REPO || '355f/deepseek-harness-client'
+const UPDATE_REPO = process.env.DSH_UPDATE_REPO || '355f/deepseek-harness-package'
 
 // ---------------------------------------------------------------------------
 // 工具函数
