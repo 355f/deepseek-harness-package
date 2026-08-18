@@ -1,0 +1,23 @@
+# 依赖与构建产物（CI 会重新 npm install，无需入库）
+node_modules/
+client/node_modules/
+client/dsh-runtime/
+client/electron/
+client/staging/
+client/staging-clean/
+
+# 打包产物
+build-output/
+client/build/portable.gen.nsi
+client/build/*.exe
+
+# WorkBuddy 项目数据（记忆等，不入库）
+.workbuddy/
+
+# 日志与临时
+*.log
+*.tmp
+
+# 系统
+.DS_Store
+Thumbs.db

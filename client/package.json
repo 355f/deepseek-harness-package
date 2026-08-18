@@ -1,0 +1,51 @@
+{
+  "name": "deepseek-harness-client",
+  "version": "0.1.0-rc.6.1",
+  "description": "DeepSeek Harness desktop client (Electron wrapper over the official dsh web UI)",
+  "main": "main.js",
+  "author": "DeepSeek AI",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder"
+  },
+  "devDependencies": {
+    "electron": "43.4.0",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "ai.deepseek.harness",
+    "productName": "DeepSeek Harness",
+    "asar": true,
+    "compression": "maximum",
+    "directories": {
+      "output": "../build-output"
+    },
+    "files": [
+      "main.js",
+      "package.json",
+      "build/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "dsh-runtime",
+        "to": "dsh-runtime"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico",
+      "artifactName": "DeepSeek-Harness-${version}-portable.${ext}"
+    },
+    "portable": {
+      "artifactName": "DeepSeek-Harness-${version}-portable.${ext}"
+    }
+  }
+}

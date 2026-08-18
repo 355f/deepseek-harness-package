@@ -1,0 +1,86 @@
+# 自动检测官方 dsh 更新 → 重新打包 → 发布 GitHub Release
+# 触发：每天 08:00 UTC 定时 + 手动 workflow_dispatch
+# 客户端（updater.js）会检查 latest Release 并自动下载替换
+
+name: auto-release
+
+on:
+  schedule:
+    - cron: "0 8 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Check latest dsh version vs existing release
+        id: check
+        shell: bash
+        run: |
+          LATEST=$(npm view @deepseek-ai/dsh version 2>/dev/null)
+          echo "npm latest: $LATEST"
+          if [ -z "$LATEST" ]; then
+            echo "无法查询 npm 版本"; exit 0
+          fi
+          CURRENT=""
+          if gh release view --json tagName -q .tagName >/dev/null 2>&1; then
+            CURRENT=$(gh release view --json tagName -q .tagName | sed 's/^v//')
+          fi
+          echo "current release: ${CURRENT:-<none>}"
+          # semver 对比（含 pre-release）：最新 > 当前 才需要打包
+          NEED=$(node -e '
+            const a = process.argv[1].replace(/^v/,"");
+            const b = (process.argv[2]||"").replace(/^v/,"");
+            function cmp(x,y){
+              const nx=x.split(/[-+]/)[0].split(".").map(Number);
+              const ny=y.split(/[-+]/)[0].split(".").map(Number);
+              for(let i=0;i<Math.max(nx.length,ny.length);i++){
+                const p=nx[i]||0, q=ny[i]||0;
+                if(p>q)return 1; if(p<q)return -1;
+              }
+              const px=x.includes("-"), py=y.includes("-");
+              if(!px&&py)return 1; if(px&&!py)return -1; return 0;
+            }
+            process.stdout.write(cmp(a,b)>0 ? "yes" : "no");
+          ' "$LATEST" "$CURRENT")
+          echo "need build: $NEED"
+          if [ "$NEED" != "yes" ]; then
+            echo "已是最新，跳过"; exit 0
+          fi
+          echo "latest=$LATEST" >> $GITHUB_OUTPUT
+          echo "::set-output name=latest::$LATEST"
+
+      - name: Install NSIS
+        if: steps.check.outputs.latest != ''
+        shell: powershell
+        run: choco install nsis --no-progress -y
+
+      - name: Build portable exe
+        if: steps.check.outputs.latest != ''
+        shell: powershell
+        run: powershell -ExecutionPolicy Bypass -File client/build.ps1 -Version ${{ steps.check.outputs.latest }}
+
+      - name: Publish GitHub Release
+        if: steps.check.outputs.latest != ''
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VER="${{ steps.check.outputs.latest }}"
+          EXE="build-output/DeepSeek-Harness-${VER}-portable.exe"
+          if [ ! -f "$EXE" ]; then echo "产物缺失: $EXE"; exit 1; fi
+          gh release create "v${VER}" "$EXE" \
+            --title "DeepSeek Harness v${VER}" \
+            --notes "自动打包自官方 @deepseek-ai/dsh@${VER}。"
+          echo "已发布 v${VER}"
