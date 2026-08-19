@@ -8,8 +8,9 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$Root = Split-Path -Parent $PSScriptRoot          # client/ 的父级（仓库根）
-$Client = Join-Path $Root "client"
+$ScriptDir = $PSScriptRoot                        # client/build
+$Client = Split-Path -Parent $ScriptDir           # client/
+$Root = Split-Path -Parent $Client                # 仓库根
 $Staging = Join-Path $Client "staging-clean"
 $OutDir = Join-Path $Root "build-output"
 
@@ -60,6 +61,21 @@ Push-Location $ElectronDir
 try { npm install electron@43.4.0 --no-audit --no-fund --prefer-offline } finally { Pop-Location }
 $ElectronDist = Join-Path $ElectronDir "node_modules\electron\dist"
 if (-not (Test-Path (Join-Path $ElectronDist "electron.exe"))) { throw "Electron 二进制缺失" }
+
+# ---------------------------------------------------------------------------
+# 2b. 生成图标（若本地缺失，CI 通常会走到这里）
+# ---------------------------------------------------------------------------
+Step "生成图标（如缺失）"
+if (-not (Test-Path (Join-Path $Client "build\icon.ico"))) {
+  Write-Host "icon.ico 缺失，尝试生成..."
+  Push-Location $Root
+  try {
+    npm install sharp --no-audit --no-fund --prefer-offline 2>&1 | Out-Null
+    node (Join-Path $Client "build" "generate-icon.js")
+  } finally { Pop-Location }
+} else {
+  Write-Host "icon.ico 已存在，跳过生成"
+}
 
 # ---------------------------------------------------------------------------
 # 3. 组装 staging（Electron 壳 + app + dsh 运行时）

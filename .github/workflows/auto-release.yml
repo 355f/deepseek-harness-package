@@ -38,8 +38,13 @@ jobs:
             CURRENT=$(gh release view --json tagName -q .tagName | sed 's/^v//')
           fi
           echo "current release: ${CURRENT:-<none>}"
-          # semver 对比（含 pre-release）：最新 > 当前 才需要打包
-          NEED=$(node -e '
+          # 没有任何 Release 时（首次发布），直接构建当前版本
+          if [ -z "$CURRENT" ]; then
+            echo "no existing release -> first build"
+            NEED="yes"
+          else
+            # semver 对比（含 pre-release）：最新 > 当前 才需要打包
+            NEED=$(node -e '
             const a = process.argv[1].replace(/^v/,"");
             const b = (process.argv[2]||"").replace(/^v/,"");
             function cmp(x,y){
@@ -53,7 +58,8 @@ jobs:
               if(!px&&py)return 1; if(px&&!py)return -1; return 0;
             }
             process.stdout.write(cmp(a,b)>0 ? "yes" : "no");
-          ' "$LATEST" "$CURRENT")
+            ' "$LATEST" "$CURRENT")
+          fi
           echo "need build: $NEED"
           if [ "$NEED" != "yes" ]; then
             echo "已是最新，跳过"; exit 0

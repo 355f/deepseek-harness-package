@@ -29,7 +29,7 @@ client/
   main.js                主进程：spawn dsh 子进程 + 创建窗口
   package.json           electron + electron-builder 配置
   build/
-    icon.ico / icon.png  DeepSeek 鲸鱼（品牌蓝 #3964fe）
+    icon.ico / icon.png  DeepSeek 黑色鲸鱼（黑色 #000000，CI 自动生成）
     generate-icon.js       图标生成脚本（用 sharp 栅格化 favicon.svg）
   dsh-runtime/
     node_modules/        完整 dsh 依赖树（extraResources 打包）
@@ -63,7 +63,7 @@ npm run build
 
 ## 自动更新
 
-客户端启动后会自动检查 GitHub Release（`355f/deepseek-harness-client`）是否有新版本，有则提示下载并自动替换重启。
+客户端启动后会自动检查 GitHub Release（`355f/deepseek-harness-package`）是否有新版本，有则提示下载并自动替换重启。
 
 更新链路：
 
@@ -75,7 +75,7 @@ npm run build
 客户端启动时检测 → 下载新 exe → 替换自身 → 重启
 ```
 
-- **版本号约定**：exe 版本 = dsh 版本（`package.json` 的 `version`）
+- **版本号约定**：GitHub Release 的 tag = 官方 `dsh` 版本（如 `v0.1.0-rc.7`）；`package.json` 的 `version` 为封装修订号（如 `0.1.0-rc.6.2`），仅用于区分「dsh 版本未变但封装更新」的本地缓存失效。
 - **发布渠道**：`.github/workflows/auto-release.yml`（每天 08:00 UTC + 手动触发）
 - **打包脚本**：`client/build.ps1`（本地/CI 通用，从 npm 安装到产出 exe 全自动）
 
