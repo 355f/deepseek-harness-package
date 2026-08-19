@@ -8,7 +8,11 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$ScriptDir = $PSScriptRoot                        # client/build
+# 注意：GitHub Actions 把 powershell 步骤包成 `powershell -command ". '脚本'"`（点源执行），
+# 此时 $PSScriptRoot 为空，必须用 $MyInvocation.MyCommand.Path 拿脚本真实绝对路径。
+$ScriptPath = $MyInvocation.MyCommand.Path
+if (-not $ScriptPath) { $ScriptPath = $script:MyInvocation.MyCommand.Definition }
+$ScriptDir = Split-Path -Parent $ScriptPath       # client/build
 $Client = Split-Path -Parent $ScriptDir           # client/
 $Root = Split-Path -Parent $Client                # 仓库根
 $Staging = Join-Path $Client "staging-clean"
