@@ -9,25 +9,23 @@ param(
 
 $ErrorActionPreference = "Stop"
 # 路径解析（关键坑）：GitHub Actions 把 powershell 步骤包成 `powershell -command ". '脚本'"`（点源执行），
-# 此时 $PSScriptRoot 与 $MyInvocation.MyCommand.Path 都可能为空。优先用脚本真实路径，
-# 退化到“当前目录即仓库根”（CI checkout 后 step 的工作目录就是仓库根），并校验 client 目录是否存在。
-$RepoRoot = $null
-if ($MyInvocation.MyCommand.Path) {
-  # client/build/build.ps1 -> 上两级即仓库根
-  $RepoRoot = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
-}
+# 此时 $PSScriptRoot / $MyInvocation.MyCommand.Path / $PWD 都不可靠。CI 下最稳妥的锚点是
+# 环境变量 $env:GITHUB_WORKSPACE（恒等于仓库 checkout 根目录）；本地运行回退到脚本真实路径/当前目录。
+$RepoRoot = $env:GITHUB_WORKSPACE
 if (-not $RepoRoot -or -not (Test-Path (Join-Path $RepoRoot "client"))) {
-  if ($PSScriptRoot) {
+  if ($MyInvocation.MyCommand.Path) {
+    $RepoRoot = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
+  } elseif ($PSScriptRoot) {
     $RepoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+  } else {
+    $RepoRoot = $PWD.ProviderPath
   }
-}
-if (-not $RepoRoot -or -not (Test-Path (Join-Path $RepoRoot "client"))) {
-  $RepoRoot = $PWD.ProviderPath
 }
 $Client = Join-Path $RepoRoot "client"
 $ScriptDir = Join-Path $Client "build"
 $Root = $RepoRoot
-Write-Host "解析路径: RepoRoot=$RepoRoot  Client=$Client  ScriptDir=$ScriptDir"
+if (-not (Test-Path $Client)) { throw "无法定位 client 目录: RepoRoot=$RepoRoot" }
+Write-Host "RepoRoot=$RepoRoot"
 $Staging = Join-Path $Client "staging-clean"
 $OutDir = Join-Path $Root "build-output"
 
