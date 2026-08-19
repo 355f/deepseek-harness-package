@@ -148,6 +148,22 @@ foreach ($s in $SdkToPrune) {
 }
 
 # ---------------------------------------------------------------------------
+# 4b. 复制短路径暂存（规避 NSIS 的 MAX_PATH 限制）
+#     NSIS 的 ANSI 版 File 命令无法打包超过约 260 字符的绝对路径；GitHub runner 的仓库路径很长，
+#     导致 node_modules 深层 .d.ts 路径超限（"failed opening file"）。把 app 暂存到盘符根的短路径后，
+#     绝对路径显著缩短，可正常打包。robocopy 自身能处理长路径的读取。
+# ---------------------------------------------------------------------------
+Step "复制短路径暂存（规避 NSIS 长路径限制）"
+$NsStaging = Join-Path $env:SystemDrive "dshstg"
+if (Test-Path $NsStaging) { Remove-Item -Recurse -Force $NsStaging }
+New-Item -ItemType Directory -Force -Path $NsStaging | Out-Null
+Write-Host "短路径暂存: $NsStaging"
+# 把 app 的内容复制到短路径基址；退出码 0-7 均视为成功
+robocopy $App $NsStaging /E /R:1 /W:1 /NFL /NDL /NJH /NJS | Out-Null
+$rcc = $LASTEXITCODE
+if ($rcc -ge 8) { throw "robocopy 暂存失败，exit=$rcc" }
+
+# ---------------------------------------------------------------------------
 # 5. 定位 NSIS（makensis）
 # ---------------------------------------------------------------------------
 Step "定位 NSIS"
@@ -194,7 +210,7 @@ Section
   StrCpy `$0 "`$LOCALAPPDATA\DeepSeek Harness\app-`${EXTRACT_TAG}"
   SetOutPath "`$0"
   IfFileExists "`$0\`${MARKER}" launch
-  File /r "..\staging-clean\app\*"
+  File /r "$NsStaging\*"
   FileOpen `$1 "`$0\`${MARKER}" w
   FileWrite `$1 "extracted `${EXTRACT_TAG}"
   FileClose `$1
