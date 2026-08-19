@@ -60,7 +60,15 @@ if (-not (Test-Path (Join-Path $ElectronDir "package.json"))) {
 Push-Location $ElectronDir
 try { npm install electron@43.4.0 --no-audit --no-fund --prefer-offline } finally { Pop-Location }
 $ElectronDist = Join-Path $ElectronDir "node_modules\electron\dist"
-if (-not (Test-Path (Join-Path $ElectronDist "electron.exe"))) { throw "Electron 二进制缺失" }
+# CI 的 npm 缓存有时会跳过 electron 的 postinstall 二进制下载（dist/electron.exe 缺失），
+# 这里显式运行 electron 自带 install.js 强制下载，避免“Electron 二进制缺失”导致构建失败。
+if (-not (Test-Path (Join-Path $ElectronDist "electron.exe"))) {
+  Write-Host "Electron 二进制缺失，显式运行 install.js 下载..."
+  $env:ELECTRON_SKIP_BINARY_DOWNLOAD = "0"
+  Push-Location $ElectronDir
+  try { node (Join-Path $ElectronDir "node_modules\electron\install.js") } finally { Pop-Location }
+}
+if (-not (Test-Path (Join-Path $ElectronDist "electron.exe"))) { throw "Electron 二进制缺失（下载失败）" }
 
 # ---------------------------------------------------------------------------
 # 2b. 生成图标（若本地缺失，CI 通常会走到这里）
