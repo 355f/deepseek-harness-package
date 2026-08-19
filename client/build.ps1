@@ -151,25 +151,34 @@ foreach ($s in $SdkToPrune) {
 # 5. 定位 NSIS（makensis）
 # ---------------------------------------------------------------------------
 Step "定位 NSIS"
-$Makensis = Get-Command makensis -ErrorAction SilentlyContinue
-if ($Makensis) {
-  $MakensisExe = $Makensis.Source
-} else {
+$MakensisExe = $null
+# 1) PATH 查找（优先，choco 安装后会写入 PATH）
+$Mc = Get-Command makensis.exe -ErrorAction SilentlyContinue
+if ($Mc -and $Mc.Source) { $MakensisExe = $Mc.Source }
+# 2) where.exe 兜底
+if (-not $MakensisExe) {
+  $wh = where.exe makensis 2>$null
+  if ($wh) { $MakensisExe = ($wh -split "`r?`n")[0].Trim() }
+}
+# 3) 已知安装位置（精确路径 + 递归）
+if (-not $MakensisExe) {
   $Candidates = @(
+    "C:\Program Files (x86)\NSIS\makensis.exe",
+    "C:\Program Files (x86)\NSIS\Bin\makensis.exe",
+    "C:\ProgramData\chocolatey\bin\makensis.exe",
     "$env:LOCALAPPDATA\electron-builder\Cache\nsis-3.0.4.1",
-    "C:\Program Files (x86)\NSIS\Bin",
-    "C:\Program Files (x86)\NSIS"
+    "C:\Program Files (x86)\NSIS",
+    "C:\Program Files (x86)\NSIS\Bin"
   )
-  $Found = $null
   foreach ($c in $Candidates) {
     if (Test-Path $c) {
-      $Found = Get-ChildItem -Path $c -Filter makensis.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
-      if ($Found) { break }
+      if ($c.EndsWith(".exe")) { $MakensisExe = $c; break }
+      $f = Get-ChildItem -Path $c -Filter makensis.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+      if ($f) { $MakensisExe = $f.FullName; break }
     }
   }
-  if ($Found) { $MakensisExe = $Found.FullName }
-  else { throw "未找到 makensis.exe（请安装 NSIS 或 choco install nsis -y）" }
 }
+if (-not $MakensisExe) { throw "未找到 makensis.exe（请安装 NSIS 或 choco install nsis -y）" }
 Write-Host "makensis: $MakensisExe"
 
 # ---------------------------------------------------------------------------
