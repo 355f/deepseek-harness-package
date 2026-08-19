@@ -131,44 +131,86 @@ function promptUpdate(latest, url, log) {
 // ---------------------------------------------------------------------------
 // 下载 + 替换 + 重启
 // ---------------------------------------------------------------------------
-function downloadAndApply(url, log) {
+function hostOf(url) {
+  try { return new URL(url).host } catch (_) { return String(url) }
+}
+
+// 下载候选源：国内可达镜像优先，GitHub 原文兜底。
+// 可用环境变量 DSH_UPDATE_MIRROR 覆盖（用 | 分隔，如 https://a.com|https://b.com）
+function candidateUrls(originalUrl) {
+  const env = (process.env.DSH_UPDATE_MIRROR || '').trim()
+  const builtin = ['https://ghfast.top', 'https://ghproxy.net']
+  const mirrors = (env ? env.split('|') : builtin)
+    .map((m) => m.trim().replace(/\/+$/, ''))
+    .filter(Boolean)
+  const list = mirrors.map((m) => m + '/' + originalUrl)
+  list.push(originalUrl) // GitHub 原文最后兜底
+  return list
+}
+
+function downloadAndApply(originalUrl, log) {
   const portableExe = getPortableExePath()
   if (!portableExe) {
     log('auto-update: no --portable-exe arg, cannot self-replace')
     dialog.showErrorBox('更新失败', '无法定位便携版文件路径，请手动下载新版。')
     return
   }
-  const tmpPath = portableExe + '.new'
-  log('auto-update: downloading -> ' + tmpPath)
+  const candidates = candidateUrls(originalUrl)
+  const lastIdx = candidates.length - 1
 
-  const file = fs.createWriteStream(tmpPath)
-  const req = https.get(url, { headers: { 'User-Agent': 'DeepSeek-Harness-Client' } }, (res) => {
-    // 跟随重定向（GitHub asset 会 302 到 CDN）
-    if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-      file.close()
-      try { fs.unlinkSync(tmpPath) } catch (_) { /* noop */ }
-      downloadAndApply(res.headers.location, log)
-      return
-    }
-    if (res.statusCode !== 200) {
-      file.close()
-      try { fs.unlinkSync(tmpPath) } catch (_) { /* noop */ }
-      log('auto-update: download failed, HTTP ' + res.statusCode)
-      dialog.showErrorBox('更新失败', '下载新版本失败（HTTP ' + res.statusCode + '）。')
-      return
-    }
-    res.pipe(file)
-    file.on('finish', () => {
-      file.close()
-      applyUpdate(tmpPath, portableExe, log)
+  const streamTo = (res, tmpPath, onFail) => {
+    const file = fs.createWriteStream(tmpPath)
+    const cleanup = () => { try { fs.unlinkSync(tmpPath) } catch (_) { /* noop */ } }
+    res.on('error', () => { cleanup(); try { file.destroy() } catch (_) { /* noop */ }; onFail() })
+    file.on('error', () => { cleanup(); onFail() })
+    const total = parseInt(res.headers['content-length'] || '0', 10)
+    let received = 0
+    let lastPct = -1
+    res.on('data', (c) => {
+      received += c.length
+      if (total) {
+        const pct = Math.floor((received / total) * 100)
+        if (pct >= lastPct + 10) { lastPct = pct; log('auto-update: download ' + pct + '%') }
+      }
     })
-  })
-  req.on('error', (e) => {
-    log('auto-update: download error: ' + e.message)
-    try { fs.unlinkSync(tmpPath) } catch (_) { /* noop */ }
-    dialog.showErrorBox('更新失败', '下载新版本失败：' + e.message)
-  })
-  req.setTimeout(300000, () => req.destroy())
+    res.pipe(file)
+    file.on('finish', () => { file.close(); applyUpdate(tmpPath, portableExe, log) })
+  }
+
+  const tryNext = (i) => {
+    if (i > lastIdx) {
+      dialog.showErrorBox('更新失败', '所有下载源均不可用，请稍后重试或手动下载。')
+      return
+    }
+    const url = candidates[i]
+    log('auto-update: trying source ' + (i + 1) + '/' + candidates.length + ' (' + hostOf(url) + ')')
+    const tmpPath = portableExe + '.new'
+    const fail = () => tryNext(i + 1)
+    const req = https.get(url, { headers: { 'User-Agent': 'DeepSeek-Harness-Client' } }, (res) => {
+      // 跟随重定向（GitHub asset 会 302 到 CDN），目标仍算同一候选源
+      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+        const loc = res.headers.location
+        const r2 = https.get(loc, { headers: { 'User-Agent': 'DeepSeek-Harness-Client' } }, (res2) => {
+          if (res2.statusCode !== 200) { fail(); return }
+          streamTo(res2, tmpPath, fail)
+        })
+        r2.on('error', fail)
+        if (i < lastIdx) r2.setTimeout(20000, () => { try { r2.destroy() } catch (_) {}; fail() })
+        return
+      }
+      if (res.statusCode !== 200) {
+        log('auto-update: source ' + hostOf(url) + ' HTTP ' + res.statusCode + ', next')
+        fail()
+        return
+      }
+      streamTo(res, tmpPath, fail)
+    })
+    req.on('error', fail)
+    // 镜像源首字节/连接超时：慢源快速跳过，切到下一源；GitHub 原文（最后兜底）不设硬超时
+    if (i < lastIdx) req.setTimeout(15000, () => { try { req.destroy() } catch (_) {}; fail() })
+  }
+
+  tryNext(0)
 }
 
 function applyUpdate(tmpPath, portableExe, log) {

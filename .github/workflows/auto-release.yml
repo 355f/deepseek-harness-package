@@ -67,6 +67,20 @@ jobs:
           echo "latest=$LATEST" >> $GITHUB_OUTPUT
           echo "::set-output name=latest::$LATEST"
 
+      - name: Cache Electron node_modules
+        if: steps.check.outputs.latest != ''
+        uses: actions/cache@v4
+        with:
+          path: client/electron/node_modules
+          key: electron-43.4.0
+
+      - name: Cache dsh-runtime node_modules
+        if: steps.check.outputs.latest != ''
+        uses: actions/cache@v4
+        with:
+          path: client/dsh-runtime/node_modules
+          key: dsh-${{ steps.check.outputs.latest }}
+
       - name: Install NSIS
         if: steps.check.outputs.latest != ''
         shell: powershell
