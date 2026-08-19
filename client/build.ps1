@@ -204,10 +204,13 @@ $NsiPath = Join-Path $Client "build\portable.gen.nsi"
 Set-Content -Path $NsiPath -Value $Nsi -Encoding ASCII
 
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
+$MakensisExe = [string]$MakensisExe
+Write-Host "调用 makensis: [$MakensisExe]"
+if (-not (Test-Path $MakensisExe)) { throw "makensis 不存在: [$MakensisExe]" }
 Push-Location (Join-Path $Client "build")
 try {
-  & $MakensisExe $NsiPath
-  if ($LASTEXITCODE -ne 0) { throw "makensis 编译失败，exit=$LASTEXITCODE" }
+  $proc = Start-Process -FilePath $MakensisExe -ArgumentList $NsiPath -NoNewWindow -Wait -PassThru
+  if ($proc.ExitCode -ne 0) { throw "makensis 编译失败，exit=$($proc.ExitCode)" }
 } finally { Pop-Location }
 
 $Exe = Join-Path $Client "build\DeepSeek-Harness-$InstalledVersion-portable.exe"
