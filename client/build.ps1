@@ -155,10 +155,12 @@ $MakensisExe = $null
 # 1) PATH 查找（choco 安装后写入 PATH）。注意 Get-Command 可能返回多个匹配，必须取单个。
 $c = Get-Command makensis.exe -ErrorAction SilentlyContinue | Select-Object -First 1
 if ($c -and $c.Source) { $MakensisExe = [string]$c.Source }
-# 2) where.exe 兜底
+# 2) where.exe 兜底（Stop 模式下其 stderr 会被转为终止错误，必须吞掉；找不到就走步骤 3 的精确路径）
 if (-not $MakensisExe) {
-  $wh = @(where.exe makensis 2>$null)
-  if ($wh.Count -and $wh[0]) { $MakensisExe = [string]$wh[0].Trim() }
+  try {
+    $wh = @(where.exe makensis 2>$null)
+    if ($wh.Count -and $wh[0]) { $MakensisExe = [string]$wh[0].Trim() }
+  } catch { }
 }
 # 3) 已知安装位置（精确路径）
 if (-not $MakensisExe) {
