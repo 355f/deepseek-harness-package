@@ -94,6 +94,11 @@ Rename-Item (Join-Path $App "electron.exe") "DeepSeek Harness.exe"
 Copy-Item (Join-Path $Client "main.js") (Join-Path $App "resources\app\main.js")
 Copy-Item (Join-Path $Client "updater.js") (Join-Path $App "resources\app\updater.js")
 Copy-Item (Join-Path $Client "package.json") (Join-Path $App "resources\app\package.json")
+# 嵌入 app 的版本号强制同步为实际 dsh 版本，保证与 Release tag / exe 文件名一致
+$PkgDst = Join-Path $App "resources\app\package.json"
+$PkgObj = Get-Content $PkgDst -Raw | ConvertFrom-Json
+$PkgObj.version = $InstalledVersion
+$PkgObj | ConvertTo-Json -Depth 10 | Set-Content -Path $PkgDst -Encoding UTF8
 Copy-Item (Join-Path $Client "build\icon.ico") (Join-Path $App "resources\app\build\icon.ico")
 Copy-Item (Join-Path $Client "build\icon.png") (Join-Path $App "resources\app\build\icon.png")
 
