@@ -1,4 +1,4 @@
-# DeepSeek Harness 便携客户端 —— 一键打包脚本
+﻿# DeepSeek Harness 便携客户端 —— 一键打包脚本
 # 用法（本地或 GitHub Actions Windows runner）：
 #   powershell -ExecutionPolicy Bypass -File build.ps1 [-Version 0.1.0-rc.7]
 # 从零产出单文件便携 exe（含 dsh 运行时 + Electron 壳 + 自动更新能力）
